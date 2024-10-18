@@ -1,0 +1,157 @@
+---
+title: "| **Marketing Analytics**  \n| Homework 1 - Bass Model\n"
+author: "Marina Kochinyan"
+date: "October 18, 2024"
+output:
+  word_document: default
+  pdf_document:
+    latex_engine: xelatex
+classoption: a4paper
+urlcolor: blue
+header-includes:
+- \usepackage{titling}
+- "\\setlength{\\droptitle}{-2cm}"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, echo = TRUE, dev='pdf')
+```
+
+## Choosing An Innovation
+
+ALEF Aeronautics Model A
+
+The final Model A production vehicle will drive on the road and fly in the air. The aircraft is planned to be piloted at first and autonomous piloting when it becomes available. The size of the vehicle allows the car to park in a standard parking space and a garage. While the cruise speed in the air is unknown, the cruise speed on the road is 25 mph (40 km/h). The range in the air is 110 miles (117 km) and the range on the road is 200 miles (322 km).
+
+A similar innovation from the past is the introduction of electric vehicles, which revolutionized the automotive industry by providing an eco-friendly alternative to traditional combustion engine vehicles, we will take the example of Tesla Model S. 
+
+Both innovations are similar in a way that those are changing our perception of traditional cars. In case of Tesla, people never popularized the non-petrol cars that also do not make any sound when moving, and ALEF Aeronautics Model A provides a brand new approach of combining both electrical car and a flying mean of transportation.
+
+Another similarity is that both Tesla and ALEF are electrical vehicles that are more eco-friendly and less harmful to the nature.
+
+```{r libraries}
+# Load the libraries
+install.packages("gridExtra", repos = "https://cloud.r-project.org")
+install.packages("diffusion", repos = "https://cloud.r-project.org")
+install.packages("ggplot2", repos = "https://cran.rstudio.com/")
+install.packages("ggplot2", dependencies=TRUE)
+install.packages("reshape2", repos = "https://cloud.r-project.org")
+
+library(gridExtra)
+library(diffusion)
+library(ggplot2)
+library(reshape2)
+```
+
+## Bass Model Estimation for Tesla Model S
+
+## Data
+
+The data, titled 'Total sales of Tesla Model S cars in the Netherlands from 2013 to 2023', is taken from [Statista](https://www.statista.com/statistics/976917/total-sales-of-tesla-model-s-cars-in-the-netherlands/). It showcases information of how many units of Tesla Model S were purchased during the period of 2013-2023 in Netherlands.
+
+```{r, echo=F, fig.height=4, fig.width=9}
+
+# Ensure your data is loaded
+tesla_data <- read.csv("C:\\Users\\Masha\\Downloads\\Tesla_Model_S_Sales_Netherlands.csv")
+
+# Plot the sales data
+ggplot(tesla_data, aes(x = Year, y = Units)) +
+    geom_bar(stat = "identity", fill = "steelblue") +
+    labs(title = "Number of Tesla Model S Sold in the Netherlands (per Year)",
+         x = "Year",
+         y = "Units Sold") +
+    scale_x_continuous(breaks = seq(min(tesla_data$Year), max(tesla_data$Year), by = 1)) +
+    theme_minimal() +
+    theme(legend.position = "none")
+```
+
+While looking on this sales graph, I am getting mixed feelings. We can see that there is a moderately small innovator rate, but at the same time, the imitator rate seems to be quite small up until 2018, but then it skyrockets to more than 5000 units sold. Afterward, we see very small sales which can be potentially caused by German/Japanese electric vehicles coming into play. Anyway, as we already have the data, we can proceed to estimate the Bass model parameters ($p$, $q$, and $m$) for the Tesla Model S.
+
+```{r, fig.height=4, fig.width=9}
+# Get the data
+sales <- tesla_data$Units
+t = 1:length(sales)
+
+# Defining the function to minimize (residuals function)
+residuals_function <- function(params) {
+    m <- params[1]
+    p <- params[2]
+    q <- params[3]
+    
+    predicted <- m * (((p+q)^2/p) * exp(-(p+q) * t)) / (1 + (q/p) * exp(-(p+q) * t))^2
+    sum((sales - predicted)^2)
+}
+#optimizing the parameters
+optim_result <- optim(par = c(sum(sales), 0.02, 0.4),
+                      fn = residuals_function,
+                      method = "BFGS")
+
+optimized_params <- optim_result$par
+
+(m <- optimized_params[1])
+(p <- optimized_params[2])
+(q <- optimized_params[3])
+```
+
+As we can see, the innovation rate, $p$, is quite small. The imitation rate, $q$ is huge, which can be caused by the spike in data in 2018.
+
+We are taking Netherlands as the scope, as the data is country-specific. To estimate the market potential of this new product, we ideally need to find the number of upper class people in Europe who are not afraid of heights. Since that data is not available, we'll estimate this by the number of EU upper class citizens who can potentially afford a 300,000 dollar car. According to [Metropolitics](https://metropolitics.org/Europe-and-the-Question-of-Social-Class.html#:~:text=The%20upper%20classes%2C%20which%20account,the%20European%20project%20and%20globalization.), about 19 percent of Europeans are upper class. Additionally, let's assume about 77% of this population are not afraid of heights according to [YouGov](https://yougov.co.uk/politics/articles/8917-afraid-heights-not-alone).
+
+```{r, echo=F, fig.height=3, fig.width=9}
+# f(t)
+bass.f <- function(t, p, q) {
+    ((p + q)^2 / p) * exp(-(p + q) * t) / (1 + (q / p) * exp(-(p + q) * t))^2
+}
+# plotting the number of adoptions along with Tesla actuals
+tesla_data$Pred = bass.f(1:nrow(tesla_data), p = p, q = q)*m
+ggplot(tesla_data, aes(x = Year, y = Units)) +
+    geom_bar(stat = 'identity') +
+    geom_point(mapping = aes(x=Year, y=Pred), color = 'red') +
+    labs(title = "Actuals of look-alike and Predicted # of Adoptions of Innovation",
+         x = "Year",
+         y = "Adoptions") +
+    scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
+    theme_minimal()
+```
+```{r,fig.height=3, fig.width=9}
+# adjusting the Market Potential to fit our innovation
+percentage_not_afraid_of_heights = 0.77
+percentage_upper_class = 0.19
+m_est = m * percentage_not_afraid_of_heights * percentage_upper_class
+
+# Plotting the number of adoptions with adjusted Market Potential per year
+tesla_data$Pred = bass.f(1:nrow(tesla_data), p = p, q = q)*m_est
+ggplot(tesla_data, aes(x = Year, y = Units)) +
+    geom_bar(stat = 'identity') +
+    geom_point(mapping = aes(x=Year, y=Pred), color = 'red') +
+    labs(title = "Actuals of look-alike and Predicted # of Adoptions of Innovation with adjusted M",
+         x = "Year",
+         y = "Adoptions") +
+    scale_x_continuous(breaks = seq(2013, 2023, by = 1)) +
+    theme_minimal()
+```
+As we can see, the predicted sales data is smoother than the Tesla actuals and compared to the non-adjusted market potential, we have overall lower sales. Now, we can plot the `f(t)` and `F(t)`, that is the proportion of adopters at and until certain time period for our estimated innovation and imitation rates to see the path of innovation.
+
+```{r, echo=F, fig.height=3, fig.width=9}
+# Plot number of new adopters per year
+ft <- ggplot(data.frame(t = 1:10), aes(t)) +
+    stat_function(fun = bass.f, args = c(p=p, q=q), linewidth=1) +
+    labs(title = 'f(t)') +
+    theme_minimal()
+
+
+bass.F <- function(t,p,q){
+    (1-exp(-(p+q)*t))/
+        (1+(q/p)*exp(-(p+q)*t))}
+
+# Plotting cumulative adopters over time
+Ft <- ggplot(data.frame(t = 1:10), aes(t)) +
+    stat_function(fun=bass.F,args=c(p=p,q=q), linewidth=1) +
+    labs(title = "F(t)") +
+    scale_x_continuous(breaks = seq(1, 10, by = 1)) +
+    theme_minimal()
+grid.arrange(ft, Ft, ncol=2, top="Diffusion paths of the Innovation")
+```
+We can see from f(t) that the peak of adoption rate is nearly 0.25 at time t which is reached at around t=5.5. We are starting to reach the full market potential in t=10 and the innovator rate is small, while immitator rate is rather huge.
+
+
